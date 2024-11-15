@@ -4,6 +4,8 @@ import { loadStripe } from "@stripe/stripe-js";
 import { useState } from "react";
 import Link from "next/link";
 
+// Get from environment variables
+
 const stripePromise = loadStripe(
   process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
 );
@@ -17,29 +19,43 @@ export default function Cart() {
     setIsLoading(true);
     try {
       const stripe = await stripePromise;
+
+      // Call your API to create a Checkout Session
       const response = await fetch("/api/create-checkout-session", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ items }),
+        body: JSON.stringify({
+          items: items.map((item) => ({
+            id: item.id,
+            name: item.name,
+            description: item.description,
+            price: item.price,
+            image: item.image,
+            quantity: item.quantity,
+            selectedVariations: item.selectedVariations,
+          })),
+        }),
       });
 
       if (!response.ok) {
-        throw new Error("Network response was not ok");
+        throw new Error("Failed to create checkout session");
       }
 
-      const session = await response.json();
+      const { sessionId } = await response.json();
 
+      // Redirect to Stripe Checkout
       const result = await stripe.redirectToCheckout({
-        sessionId: session.id,
+        sessionId: sessionId,
       });
 
       if (result.error) {
-        console.error(result.error.message);
+        throw new Error(result.error.message);
       }
     } catch (error) {
       console.error("Error in checkout:", error);
+      // You might want to show an error message to the user here
     } finally {
       setIsLoading(false);
     }
@@ -52,10 +68,11 @@ export default function Cart() {
         <p className="mb-6">
           Looks like you haven't added any items to your cart yet.
         </p>
-        <Link href="/products">
-          <a className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition duration-300">
-            View Products
-          </a>
+        <Link
+          href="/products"
+          className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition duration-300"
+        >
+          View Products
         </Link>
       </div>
     );
@@ -71,24 +88,25 @@ export default function Cart() {
         >
           <div>
             <h3 className="text-lg font-semibold">{item.name}</h3>
-            {Object.entries(item.selectedVariations).map(([key, value]) => (
-              <p key={key} className="text-sm text-gray-300">
-                {key}: {value}
-              </p>
-            ))}
+            {item.selectedVariations &&
+              Object.entries(item.selectedVariations).map(([key, value]) => (
+                <p key={key} className="text-sm text-gray-400">
+                  {key}: {value}
+                </p>
+              ))}
             <div className="flex items-center mt-2">
               <button
                 onClick={() =>
                   updateQuantity(item, Math.max(1, item.quantity - 1))
                 }
-                className="bg-gray-500 px-2 py-1 rounded-l"
+                className="bg-gray-400 px-2 py-1 rounded-l"
               >
                 -
               </button>
-              <span className="bg-gray-400 px-4 py-1">{item.quantity}</span>
+              <span className="bg-gray-500 px-4 py-1">{item.quantity}</span>
               <button
                 onClick={() => updateQuantity(item, item.quantity + 1)}
-                className="bg-gray-500 px-2 py-1 rounded-r"
+                className="bg-gray-400 px-2 py-1 rounded-r"
               >
                 +
               </button>
